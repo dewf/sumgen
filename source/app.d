@@ -1,28 +1,38 @@
 import std.stdio;
-import bettersum;
 
 import file = std.file;
 import std.regex;
 import std.algorithm.iteration : filter;
 import std.range: array;
-import std.format;
 import std.string: replace, strip;
 import std.uni : toLower;
 
+import bettersum.offline;
+
+enum HEADER_LINE = "// == sumgen v0.5 ==============================================================\n";
 enum CONSENT_FILE = "./.sumgen-consent";
+
+enum ErrorCode {
+	None,
+	BadArgs = 2,
+	NoConsent = 3,
+	ParseError = 4
+}
 
 int main(string[] args)
 {
 	if (args.length != 2) {
 		stderr.writefln("usage: sumgen <project source root>");
-		return 2;
+		return ErrorCode.BadArgs;
 	}
+
+	auto scanPath = args[1];
 
 	// check for consent file
 	if (!file.exists(CONSENT_FILE)) {
 		// check to see if user is OK with destructive writing of files
 		writeln("\n============================= W A R N I N G ! ===================================");
-		writeln("'sumgen' recursively reads all .d files starting at the root directory,");
+		writeln("'sumgen' recursively reads all .d files starting at the specified root directory,");
 		writeln("and destructively edits them (appending or removing generated sumtype definitions).");
 		writeln("");
 		writeln("Obviously you should have your files in source control, and/or backed up.");
@@ -37,26 +47,25 @@ int main(string[] args)
 			// onward!
 		} else {
 			writeln("sumgen execution aborted (consent failure)");
-			return 3;
+			return ErrorCode.NoConsent;
 		}
 	}
 
 	writeln("");
 
-	auto splitRegex = regex(r"\n^// ={77}$", "sm"); // consume optional newline at start, so we don't keep adding blank lines
+	auto headerLineRegex = regex(r"\n?// == sumgen v([0-9.]+)"); // consume optional newline at start, so we don't keep adding blank lines
 	auto defRegex = regex(r"
 		^// \s* !gensum \s+
-		^enum \s+ ([A-Za-z_][A-Za-z0-9_]*)def \s* = \s* q\{
-		(.*?)
-		^\};
-		", "isxm");
+		^enum \s+ \S+ \s* = \s* q\{
+		(.*?\}) \s* \} \s* ;
+		", "sxm");
 
-	foreach (entry; file.dirEntries("./fakeproject", "*.d", file.SpanMode.depth).filter!(e => e.isFile)) {
+	foreach (entry; file.dirEntries(scanPath, "*.d", file.SpanMode.depth).filter!(e => e.isFile)) {
 		writefln("- scanning [%s]", entry.name.replace(r"\", "/"));
 		auto content = file.readText(entry.name);
 
 		// destroy old stuff, if it exists
-		auto parts = splitter(content, splitRegex).array();
+		auto parts = splitter(content, headerLineRegex).array();
 		content = parts[0];
 
 		// actually look for definitions
@@ -74,15 +83,29 @@ int main(string[] args)
 		}
 
 		content ~= "\n";
-		content ~= "// =============================================================================\n";
-		content ~= "// == SUMGEN-GENERATED CODE BELOW - ANYTHING ADDED BELOW WILL BE DESTROYED!! ===\n";
+		content ~= HEADER_LINE;
+		content ~= "// ===== GENERATED CODE BELOW - ANYTHING ADDED BELOW WILL BE DESTROYED!! =======\n";
 		content ~= "// =============================================================================\n";
 		content ~= "\n";
 
 		// append definitions to file
 		foreach (m; matches) {
-			auto spec = format("%s {%s}", m[1], m[2]);
-			content ~= sumtype(spec);
+			auto spec = m[1];
+			auto result = sumtype(spec);
+			if (auto success = result.isSuccess()) {
+				content ~= *success;
+			} else if (auto error = result.isError()) {
+				writeln();
+				writeln("### Error in sumtype ###");
+				writeln("-----------------------");
+				writeln(spec.strip());
+				writeln();
+				writefln("error [line %d : col %d]: %s", error.loc.line, error.loc.col, error.message);
+				writeln();
+
+				return ErrorCode.ParseError;
+			}
+			static assert(OfflineResult.isExhaustive(q{Success, Error}));
 			content ~= "\n";
 		}
 
