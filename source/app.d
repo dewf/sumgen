@@ -55,7 +55,7 @@ int main(string[] args)
 
 	auto headerLineRegex = regex(r"\n?// == sumgen v([0-9.]+)"); // consume optional newline at start, so we don't keep adding blank lines
 	auto defRegex = regex(r"
-		^// \s* !gensum \s+
+		^// \s* !sumgen \s+
 		^enum \s+ \S+ \s* = \s* q\{
 		(.*?\}) \s* \} \s* ;
 		", "sxm");
