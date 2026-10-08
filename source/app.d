@@ -36,13 +36,13 @@ int main(string[] args)
 		writeln("and destructively edits them (appending or removing generated sumtype definitions).");
 		writeln("");
 		writeln("Obviously you should have your files in source control, and/or backed up.");
-		writeln("Do you consent to have your .d files destructively edited?");
+		writeln("Do you consent to having your .d files destructively edited?");
 		writeln("(Your answer will be remembered, when running from this working directory)");
 		writeln("\n\nAllow destructive edits? y/N");
 
 		auto answer = readln().strip().toLower();
 		if (answer == "y" || answer == "yes") {
-			file.write(CONSENT_FILE, "the presence of this file indicates your consent to allow 'sumgen' to destructively edit your .d files");
+			file.write(CONSENT_FILE, "the presence of this file indicates your consent to allow 'sumgen' to destructively edit your .d files\n");
 			writefln("\n\n[%s] written", CONSENT_FILE);
 			// onward!
 		} else {
