@@ -1,0 +1,7 @@
+name "sumgen"
+description "offline 'bettersum' generator"
+authors "Daniel G"
+copyright "Copyright © 2026, Daniel G"
+license "MIT"
+dependency "bettersum" version="~>0.7.0"
+targetPath "./bin"
